@@ -1,0 +1,95 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+import time
+import pandas as pd
+from bs4 import BeautifulSoup
+import subprocess
+
+
+# Load the updated_output_file CSV into a DataFrame
+updated_output =  r'C:\Users\karimi.dennis\Desktop\output_updated.csv'
+df = pd.read_csv(updated_output, dtype={"ONU Name": str})
+
+# Set the User-Agent
+options = webdriver.ChromeOptions()
+options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+# Create a Chrome WebDriver instance with options
+driver = webdriver.Chrome(options=options)
+# Set the username and password
+username = "dennis.karimi"
+password = "Mz3KgZsqK56b"
+# Loop through each row in the DataFrame
+for index, row in df.iterrows():
+    onu_name = row["ONU Name"]
+    
+    # Navigate to the login page
+    base_url = "http://my2.faiba.co.ke/login.ews"
+    driver.get(base_url)
+    
+    # Fill in the login form
+    user_field = driver.find_element(By.NAME, "User")
+    user_field.send_keys(username)
+    
+    pass_field = driver.find_element(By.NAME, "Password")
+    pass_field.send_keys(password)
+    
+    submit_button = driver.find_element(By.XPATH, '//input[@accesskey="L" and @type="SUBMIT"]')
+    submit_button.click()
+    
+    # Rest of your code to navigate and perform actions on the website
+    time.sleep(1)  # Adding a delay to ensure the page fully loads
+    
+    account_button = driver.find_element(By.XPATH, '//a[@accesskey="2" and @href="accounts.ews"]')
+    account_button.click()
+    
+    Account_ID_Field = driver.find_element(By.NAME, "AccountID")
+    Account_ID_Field.clear()  # Clear the existing text
+    Account_ID_Field.send_keys(onu_name)  # Use ONU Name as Account ID
+    
+    # Find the select element
+    status_select = driver.find_element(By.NAME, "StatusID")
+    
+    # Create a Select object
+    select = Select(status_select)
+    
+    # Select the option with value "0"
+    select.select_by_value("0")
+    
+    search_button = driver.find_element(By.XPATH, '//input[@type="SUBMIT" and @name="submit" and @value="Search"]')
+    search_button.click()
+
+    SERVICE_button = driver.find_element(By.XPATH, '//a[contains(text(),"Emerald5 Service") and starts-with(@href,"sa_detail.ews")]')
+    SERVICE_button.click()
+    SERVICE_url = driver.current_url
+    
+    # Get the relevant details from the parsed HTML content
+    html_content = driver.page_source
+    soup = BeautifulSoup(html_content, "html.parser")
+    
+    status = soup.find("td", string="Status").find_next("td").text if soup.find("td", string="Status") else "N/A"
+    address = soup.find("td", string="Address").find_next("td").text if soup.find("td", string="Address") else "N/A"
+    home_tel = soup.find("td", string="Home Tel").find_next("td").text if soup.find("td", string="Home Tel") else "N/A"
+    service_info = soup.find("h3").text if soup.find("h3") else "N/A"
+    mobile = soup.find("td", string="Mobile").find_next("td").text if soup.find("td", string="Mobile") else "N/A"
+
+    try:
+        customer_id = soup.find("a", href=True, text="Show MBR")["href"].split("CustomerID=")[1]
+    except (TypeError, KeyError):
+        customer_id = "N/A"
+    
+    # Update the DataFrame with the extracted details
+    df.at[index, "Status"] = status
+    df.at[index, "Address"] = address
+    df.at[index, "Home Tel"] = home_tel
+    df.at[index, "Service"] = service_info
+    df.at[index, "CustomerID"] = customer_id
+    
+# Save the updated DataFrame back to the CSV
+df.to_csv(updated_output, index=False)
+
+# Close the WebDriver
+driver.quit()
+
+

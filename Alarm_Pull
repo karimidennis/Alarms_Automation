@@ -1,0 +1,66 @@
+import csv
+
+# Define the path to the input CSV file
+input_file = r'C:\Users\karimi.dennis\Desktop\GPON-ONULOS-CODE35113-MONITOR(VisibleColumns).csv'
+
+# Define the path to the output CSV file
+output_file = r'C:\Users\karimi.dennis\Desktop\output.csv'
+
+# Specify the columns to extract
+columns_to_extract = ['NE', 'Location', 'Alarm Code', 'Remark']
+
+# Read the input CSV file and extract the desired columns
+with open(input_file, 'r') as file:
+    reader = csv.DictReader(file)
+
+    # Check if all required columns exist in the input file
+    input_columns = reader.fieldnames
+    missing_columns = [col for col in columns_to_extract if col not in input_columns]
+
+    if missing_columns:
+        print(f"Error: The following columns are missing in the input file: {', '.join(missing_columns)}")
+        exit()
+
+    rows = []
+    for row in reader:
+        location = row.get('Location', '')
+        location_parts = location.split(',')
+        slot = ''
+        port = ''
+        onu = ''
+
+        for part in location_parts:
+            if part.startswith('SLOT='):
+                slot = part.split('=')[1]
+            elif part.startswith('PORT='):
+                port = part.split('=')[1]
+            elif part.startswith('ONU='):
+                onu = part.split('=')[1]
+
+        location_shortened = f"{slot}/{port}:{onu}"
+
+        remark = row.get('Remark', '')
+        if remark.startswith('Intermittent period:'):
+            remark = 'N/A'
+        else:
+            remark_split = remark.split(',')
+            if len(remark_split) >= 2:
+                remark = remark_split[1].split('=')[1][:-1].strip()
+            else:
+                remark = ''
+
+        extracted_row = {
+            'NE': row.get('NE', ''),
+            'Location': location_shortened,
+            'Alarm Code': 'LOS' if row.get('Alarm Code', '') == '[GPON Alarm]ONU LOS(Loss of Signal)(35113)' else row.get('Alarm Code', ''),
+            'Remark': remark
+        }
+        rows.append(extracted_row)
+
+# Write the extracted rows to the output CSV file
+with open(output_file, 'w', newline='') as file:
+    writer = csv.DictWriter(file, fieldnames=columns_to_extract)
+    writer.writeheader()
+    writer.writerows(rows)
+
+print("Conversion completed successfully!")

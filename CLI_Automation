@@ -1,0 +1,119 @@
+import paramiko
+import time
+import re
+import subprocess
+import csv
+from multiprocessing import Pool, current_process
+
+def initialize_olt_data(data):
+    global olt_data
+    olt_data = data
+
+def process_row(row):
+    ne = row['NE']
+    location = row['Location']
+
+    # Get the host IP from the OLT_DATA
+    if ne in olt_data:
+        host = olt_data[ne]
+    else:
+        print(f"Host IP not found for NE: {ne}")
+        return row  # Return the unmodified row
+
+    # SSH connection parameters
+    ssh_port = 22
+    username = 'karimi.dennis'
+    password = 'YGeeV20'
+
+    try:
+        # Create SSH client
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        # Connect to the SSH server
+        client.connect(host, ssh_port, username, password)
+
+        # Enable mode (assuming 'enable' is the password to enable)
+        shell = client.invoke_shell()
+        time.sleep(7)
+        shell.send('enable\n')
+        time.sleep(1)
+        shell.send('zxr10\n')
+        # Wait for a short time to ensure the command is processed
+        time.sleep(1)
+
+        # Run the command
+        shell.send(f'show gpon onu detail-info gpon-onu_1/{location}\n')
+        time.sleep(1)
+        shell.send(' \n')
+        time.sleep(1)
+        shell.send(f'show pon power onu-rx gpon-onu_1/{location}\n')
+        time.sleep(1)
+        shell.send('\n')
+
+        # Wait for a short time to ensure the command is processed
+        time.sleep(1)
+
+        # Read the output
+        output = shell.recv(4096).decode()
+        print(output)
+
+        # Extract ONU Name
+        service_line = output.split('Name:')
+        if len(service_line) > 1:
+            onu_name_match = service_line[1].split('\n')[0].strip().split('#')[-1].split(' ')[0]
+            onu_name = onu_name_match if onu_name_match else "N/A"
+        else:
+            onu_name = "N/A"
+
+        # Extract Rx Power
+        rx_power_match = re.search(r"(-?\d+\.\d+)\(dbm\)", output)
+        if rx_power_match:
+            rx_power = rx_power_match.group(1)
+        else:
+            rx_power = "N/A"
+
+        # Update the row with ONU Name and Rx Power
+        row['ONU Name'] = onu_name
+        row['Rx Power'] = rx_power
+
+    except Exception as e:
+        print(f"Error occurred for NE: {ne} - {e}")
+
+    finally:
+        # Close the SSH connection
+        client.close()
+
+    return row
+
+
+if __name__ == '__main__':
+    program_path = 'Alarms_Automation\Alarm_Pull'
+    subprocess.run(['python', program_path])
+
+    output_file = r'C:\Users\karimi.dennis\Desktop\output.csv'
+    olt_data_file = r'C:\Users\karimi.dennis\Desktop\OLT_DATA.csv'
+
+    # Read the OLT_DATA file
+    olt_data = {}
+    with open(olt_data_file, 'r') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            olt_data[row['NE']] = row['Host']
+
+    # Read the output file
+    with open(output_file, 'r') as file:
+        reader = csv.DictReader(file)
+        rows = list(reader)  # Store the data in a separate variable
+
+    # Process rows concurrently using multiple processes
+    with Pool(initializer=initialize_olt_data, initargs=(olt_data,),) as pool:
+        updated_rows = pool.map(process_row, rows)
+
+    # Write the updated output file
+    updated_output_file = r'C:\Users\karimi.dennis\Desktop\output_updated.csv'
+    fieldnames = reader.fieldnames + ['ONU Name', 'Rx Power']
+    with open(updated_output_file, 'w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(updated_rows)  # Use the updated rows instead of the original rows

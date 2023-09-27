@@ -1,0 +1,44 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+import time
+import pandas as pd
+from bs4 import BeautifulSoup
+import subprocess
+
+
+
+
+# Set the User-Agent
+options = webdriver.ChromeOptions()
+options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
+# Create a Chrome WebDriver instance with options
+driver = webdriver.Chrome(options=options)
+# Set the username and password
+username = 'karimi.dennis'
+password = 'XGeeV20'
+
+# Navigate to the login page
+base_url = "https://crm.jtl.co.ke/index.php?action=Login&module=Users"
+driver.get(base_url)
+
+# Fill in the login form
+user_field = driver.find_element(By.NAME, "user_name")
+user_field.send_keys(username)
+
+pass_field = driver.find_element(By.ID, "username_password")  # Using ID locator
+pass_field.send_keys(password)
+
+# Locate and click the "Log In" button
+login_button = driver.find_element(By.CLASS_NAME, "btn-info")
+login_button.click()
+time.sleep(3) 
+
+# Now, navigate to the desired URL
+desired_url = "https://crm.jtl.co.ke/index.php?module=Cases&action=EditView&return_module=Cases&return_action=DetailView"
+driver.get(desired_url)
+time.sleep(3) 
+
+driver.quit()
+

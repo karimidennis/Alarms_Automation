@@ -1,0 +1,54 @@
+import csv
+import subprocess
+
+updated_output_file = r'C:\Users\karimi.dennis\Desktop\output_updated.csv'
+OPEN_TTS_file = r'C:\Users\karimi.dennis\Desktop\OPEN-TTS.csv'
+
+# Execute the program Alarms_Automation\CLI_Automation
+subprocess.run(['python', 'Alarms_Automation\CLI_Automation'])
+
+# Load data from the output_updated.csv file
+output_data = []
+with open(updated_output_file, 'r', newline='') as file:
+    reader = csv.reader(file)
+    header = next(reader)  # Get the header row
+
+    # Check for and add the Ticket Number column header
+    ticket_number_header = "Ticket Number"
+    if ticket_number_header not in header:
+        header.append(ticket_number_header)
+
+    output_data.append(header)  # Append the updated header to the output data
+    
+    # Column indices (adjust as needed)
+    onu_name_index = header.index("ONU Name")
+
+    for row in reader:
+        output_data.append(row)  # Append each row to the output data
+
+# Load data from the OPEN-TTS.csv file into a dictionary for efficient lookup
+ticket_data = {}
+with open(OPEN_TTS_file, 'r', newline='') as file:
+    reader = csv.reader(file)
+    header = next(reader)  # Skip the header row
+    for row in reader:
+        ticket_number = row[0]  # Assuming Ticket Number is in the first column
+        service_number = row[2]  # Assuming Service Number is in the third column
+        category_1 = row[4]  # Assuming Category 1 is in the fifth column
+        if service_number not in ticket_data:
+            ticket_data[service_number] = {'ticket_number': ticket_number, 'category_1': category_1}
+
+# Update the output data with the Ticket Number column based on conditions
+for row in output_data[1:]:
+    onu_name = row[onu_name_index]
+    ticket_info = ticket_data.get(onu_name)
+    if ticket_info and ticket_info['category_1'] == "LOS Fiber Cut":
+        ticket_number = ticket_info['ticket_number']
+    else:
+        ticket_number = 'N/A'
+    row.append(ticket_number)
+
+# Write the updated output data back to the output_updated.csv file
+with open(updated_output_file, 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerows(output_data)
